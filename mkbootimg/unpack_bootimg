@@ -55,7 +55,10 @@ def unpack_bootimage(args):
     print('second bootloader load address: %s' % kernel_ramdisk_second_info[5])
     print('kernel tags load address: %s' % kernel_ramdisk_second_info[6])
     print('page size: %s' % kernel_ramdisk_second_info[7])
-    print('boot image header version: %s' % kernel_ramdisk_second_info[8])
+    if args.qcdt:
+        print('dtb size: %s' % kernel_ramdisk_second_info[8])
+    else:
+        print('boot image header version: %s' % kernel_ramdisk_second_info[8])
     print('os version and patch level: %s' % kernel_ramdisk_second_info[9])
 
     product_name = unpack('16s', args.boot_img.read(16))
@@ -72,7 +75,12 @@ def unpack_bootimage(args):
     ramdisk_size = kernel_ramdisk_second_info[2]
     second_size = kernel_ramdisk_second_info[4]
     page_size = kernel_ramdisk_second_info[7]
-    version = kernel_ramdisk_second_info[8]
+    if args.qcdt:
+        dtb_size = kernel_ramdisk_second_info[8]
+        version = 0
+    else:
+        version = kernel_ramdisk_second_info[8]
+
     if version > 0:
         recovery_dtbo_size = unpack('I', args.boot_img.read(1 * 4))[0]
         print('recovery dtbo size: %s' % recovery_dtbo_size)
@@ -88,7 +96,8 @@ def unpack_bootimage(args):
         dtb_load_address = unpack('Q', args.boot_img.read(8))[0]
         print('dtb address: %s' % dtb_load_address)
     else:
-        dtb_size = 0
+        if not args.qcdt:
+            dtb_size = 0
 
 
     # The first page contains the boot header
@@ -136,6 +145,7 @@ def parse_cmdline():
         help='path to boot image',
         type=FileType('rb'),
         required=True)
+    parser.add_argument('--qcdt', help='Boot image uses legacy qcdt', action='store_true')
     parser.add_argument('--out', help='path to out binaries', default='out')
     return parser.parse_args()
 

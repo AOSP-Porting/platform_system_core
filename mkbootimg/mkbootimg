@@ -79,7 +79,7 @@ def write_header(args):
         args.base + args.second_offset,                 # physical load addr
         args.base + args.tags_offset,                   # physical addr for kernel tags
         args.pagesize,                                  # flash page size we assume
-        args.header_version,                            # version of bootimage header
+        hdr_version_or_dtb_size(args),                  # version of bootimage header or dtb size in bytes
         (args.os_version << 11) | args.os_patch_level)) # os version and patch level
     args.output.write(pack('16s', args.board.encode())) # asciiz product name
     args.output.write(pack('512s', args.cmdline[:512].encode()))
@@ -91,7 +91,7 @@ def write_header(args):
 
     if args.header_version > 0:
         update_sha(sha, args.recovery_dtbo)
-    if args.header_version > 1:
+    if args.header_version > 1 or args.qcdt:
         update_sha(sha, args.dtb)
 
     img_id = pack('32s', sha.digest())
@@ -118,6 +118,12 @@ def write_header(args):
     pad_file(args.output, args.pagesize)
     return img_id
 
+
+def hdr_version_or_dtb_size(args):
+    if args.qcdt:
+        return filesize(args.dtb)
+    else:
+        return args.header_version
 
 class ValidateStrLenAction(Action):
     def __init__(self, option_strings, dest, nargs=None, **kwargs):
@@ -177,6 +183,7 @@ def parse_cmdline():
                         required=True)
     parser.add_argument('--ramdisk', help='path to the ramdisk', type=FileType('rb'))
     parser.add_argument('--second', help='path to the 2nd bootloader', type=FileType('rb'))
+    parser.add_argument('--qcdt', help='use legacy qcdt', action='store_true')
     parser.add_argument('--dtb', help='path to dtb', type=FileType('rb'))
     recovery_dtbo_group = parser.add_mutually_exclusive_group()
     recovery_dtbo_group.add_argument('--recovery_dtbo', help='path to the recovery DTBO', type=FileType('rb'))
@@ -205,7 +212,12 @@ def parse_cmdline():
     parser.add_argument('--header_version', help='boot image header version', type=parse_int, default=0)
     parser.add_argument('-o', '--output', help='output file name', type=FileType('wb'),
                         required=True)
-    return parser.parse_args()
+
+    args = parser.parse_args()
+    if args.header_version > 0 and args.qcdt:
+        raise ValueError('header_version and qcdt cannot be set at the same time')
+
+    return args
 
 
 def write_data(args):
@@ -215,7 +227,7 @@ def write_data(args):
 
     if args.header_version > 0:
         write_padded_file(args.output, args.recovery_dtbo, args.pagesize)
-    if args.header_version > 1:
+    if args.header_version > 1 or args.qcdt:
         write_padded_file(args.output, args.dtb, args.pagesize)
 
 def main():
